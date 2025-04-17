@@ -81,8 +81,12 @@ def main():
     model = AutoModel.from_pretrained(model_name)
     model.to(device)
 
-    # 3. Ruta a la carpeta con tus archivos .txt
-    corpus_path = "path_to_your_wikipedia_articles"  # Reemplaza con la ruta correcta
+
+    # Obtener la ruta del directorio actual donde se ejecuta el script
+    current_directory = os.getcwd()
+
+    # Crear la ruta completa hacia la carpeta de los artículos
+    corpus_path = os.path.join(current_directory, 'Data', 'World_War_II', 'Wikipedia', 'English')
     articles = load_and_preprocess_articles(corpus_path)
     
     # 4. Generar embeddings para los artículos
@@ -94,7 +98,7 @@ def main():
     # 6. Guardar el índice FAISS y los embeddings
     save_faiss_index_and_embeddings(index, embeddings)
 
-# -------------------------
+# -------------------------s
 # 6. Ejecutar el main
 # -------------------------
 
