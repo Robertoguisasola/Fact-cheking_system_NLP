@@ -2,7 +2,7 @@ import os
 import faiss
 import torch
 import numpy as np
-from transformers import AutoTokenizer, AutoModel
+from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 # -------------------------
@@ -24,22 +24,19 @@ def load_and_preprocess_articles(corpus_path):
     return articles
 
 # -------------------------
-# 2. Generación de Embeddings
+# 2. Generación de Embeddings con Sentence-BERT
 # -------------------------
 
-def generate_embeddings(articles, model, tokenizer, device):
+def generate_embeddings(articles, model, device):
     """
-    Genera los embeddings para los artículos usando el modelo cargado.
+    Genera los embeddings para los artículos usando el modelo cargado (Sentence-BERT).
     """
     embeddings = []
     for article in tqdm(articles):
-        inputs = tokenizer(article, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        inputs = {key: value.to(device) for key, value in inputs.items()}  # Mover los inputs a GPU/CPU
-
-        with torch.no_grad():
-            outputs = model(**inputs)
-            embedding = outputs.last_hidden_state.mean(dim=1).cpu().numpy()  # Tomamos el promedio de los tokens
-            embeddings.append(embedding)
+        # Generar embedding para cada artículo
+        embedding = model.encode(article)
+        embeddings.append(embedding)
+    
     return np.vstack(embeddings)
 
 # -------------------------
@@ -50,7 +47,7 @@ def create_faiss_index(embeddings):
     """
     Crea el índice FAISS para realizar búsquedas semánticas en los embeddings.
     """
-    dimension = embeddings.shape[1]
+    dimension = embeddings.shape[1]  # Número de dimensiones de los embeddings
     index = faiss.IndexFlatL2(dimension)  # Utilizando L2 para distancia euclidiana
     index.add(embeddings)
     return index
@@ -75,12 +72,10 @@ def main():
     # 1. Verificar si hay GPU disponible
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # 2. Cargar el modelo y el tokenizador de embeddings
-    model_name = "distilbert-base-uncased"  # Modelo de embeddings
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
-    model.to(device)
-
+    # 2. Cargar el modelo de embeddings (Sentence-BERT)
+    model_name = 'all-MiniLM-L6-v2'  # Usamos Sentence-BERT
+    model = SentenceTransformer(model_name)
+    model.to(device)  # Mover el modelo a GPU/CPU
 
     # Obtener la ruta del directorio actual donde se ejecuta el script
     current_directory = os.getcwd()
@@ -89,16 +84,16 @@ def main():
     corpus_path = os.path.join(current_directory, 'Data', 'World_War_II', 'Wikipedia', 'English')
     articles = load_and_preprocess_articles(corpus_path)
     
-    # 4. Generar embeddings para los artículos
-    embeddings = generate_embeddings(articles, model, tokenizer, device)
+    # 3. Generar embeddings para los artículos
+    embeddings = generate_embeddings(articles, model, device)
     
-    # 5. Crear el índice FAISS
+    # 4. Crear el índice FAISS
     index = create_faiss_index(embeddings)
     
-    # 6. Guardar el índice FAISS y los embeddings
+    # 5. Guardar el índice FAISS y los embeddings
     save_faiss_index_and_embeddings(index, embeddings)
 
-# -------------------------s
+# -------------------------
 # 6. Ejecutar el main
 # -------------------------
 
