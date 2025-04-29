@@ -4,3 +4,7 @@
 __pycache__
 
 .ipynb_checkpoints
+
+# Ignore FAISS index and documents
+*.pkl
+*.index
