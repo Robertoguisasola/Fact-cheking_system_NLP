@@ -1,2 +1,6 @@
 /corpus
 /Data
+
+__pycache__
+
+.ipynb_checkpoints
