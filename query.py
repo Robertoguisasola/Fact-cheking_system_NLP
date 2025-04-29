@@ -4,6 +4,7 @@ import faiss
 import numpy as np
 from generate_embeddings import load_and_preprocess_articles
 import os
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # ------------------------
 # 1. Configurar dispositivo (GPU/CPU)
@@ -21,8 +22,6 @@ embedding_model.to(device)  # Mover el modelo a GPU/CPU
 # --------------------------
 # 3. Cargar el modelo generativo (T5) para la respuesta
 # --------------------------
-
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 tokenizer_t5 = AutoTokenizer.from_pretrained("google/flan-t5-base")
 model_t5 = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
@@ -58,7 +57,7 @@ def search(query, index, k=3):
     corpus_path = os.path.join(current_directory, 'Data', 'World_War_II', 'Wikipedia', 'English')
     articles = load_and_preprocess_articles(corpus_path)
 
-    # Obtener los documentos relevantes
+    # Obtener los documentos relevantes (limitamos a los k más cercanos)
     relevant_docs = [articles[i] for i in indices[0]]  # Recupera los artículos más relevantes
     return relevant_docs
 
@@ -70,8 +69,16 @@ def generate_answer(query, relevant_docs):
     """
     Función que genera una respuesta utilizando el modelo T5 basado en los documentos recuperados.
     """
+    # Limitar la cantidad de documentos relevantes para mejorar el contexto
+    limited_docs = relevant_docs[:3]  # Usamos solo los 3 primeros documentos para mantener el contexto
+
+    # Verificación de los documentos relevantes antes de pasarlos al modelo
+    print("\nDocuments retrieved:")
+    for doc in limited_docs:
+        print(f"- {doc[:500]}...")  # Imprimir una parte de cada documento (para depuración)
+
     # Concatenar los documentos relevantes con la pregunta para crear el prompt
-    input_text = query + " " + " ".join(relevant_docs)
+    input_text = query + " " + " ".join(limited_docs)
 
     # Tokenizar y generar la respuesta
     inputs = tokenizer_t5(input_text, return_tensors="pt", padding=True, truncation=True)
@@ -125,7 +132,7 @@ def interactive_mode():
         print(f"System: {verification}.")
         print("Justification:")
         for doc in relevant_docs:
-            print(f"- {doc}")
+            print(f"- {doc[:500]}...")  # Mostrar parte de los documentos relevantes
 
         print("\nWhat else would you like to check?\n")
 
