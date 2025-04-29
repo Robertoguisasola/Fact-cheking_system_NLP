@@ -63,6 +63,8 @@ This script:
     - Builds a FAISS vector index
     - Saves both the index (faiss_index.index) and document chunks (documents.pkl) in utils/
 
+These files were too heavy to be uploaded to github, but they were generated and can be downloaded from this Google Drive folder. You need to access with a UC3M mail account. [FAISS files](https://drive.google.com/drive/folders/1daD5Bnlu5mziWF8gHbwgWNpXloonD0vS?usp=drive_link)
+
 ### 4. Start the fact-checking system
 Run:
 ```
