@@ -1,30 +1,21 @@
 import faiss
 import pickle
 import torch
-import os
 from sentence_transformers import SentenceTransformer
 from langdetect import detect
 from bert_score import score
-import time
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# 1) Carga de índices, documentos y modelos (una vez, al importar el módulo)
+index = faiss.read_index("faiss_index.index")
+with open("documents.pkl", "rb") as f:
+    documents = pickle.load(f)
+
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 MODEL_NAME = 'meta-llama/Llama-3.2-1B-Instruct'
 TOKEN = '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'
-
-
-# Cargar FAISS y documentos
-index = faiss.read_index("utils/faiss_index.index")
-with open("utils/documents.pkl", "rb") as f:
-    documents = pickle.load(f)
-
-# Embeddings
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
-# LLM
-tokenizer = AutoTokenizer.from_pretrained(
-    MODEL_NAME,
-    token=TOKEN
-)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=TOKEN)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float16,
@@ -32,86 +23,78 @@ model = AutoModelForCausalLM.from_pretrained(
     token=TOKEN
 )
 
-# RAG loop
-while True:
-    query = input("💬 Statement sobre WWII: ")
-    start_time = time.time()
-
-    # --- Detectar idioma ---
-    language = detect(query)
-
-    if language == 'es':
-        language_instruction = "Responde en español."
-    elif language == 'en':
-        language_instruction = "Answer in English."
-    elif language == 'fr':
-        language_instruction = "Répondez en français."
-    elif language == 'de':
-        language_instruction = "Antworten Sie auf Deutsch."
+def verificar_afirmacion(claim: str) -> str:
+    """
+    Toma una afirmación (claim), realiza RAG + LLM y devuelve:
+      - Razonamiento paso a paso
+      - Fragmento clave
+      - Veredicto (True/False/Not enough information)
+      - Métricas de confianza y BERTScore
+    """
+    # Detectar idioma
+    lang = detect(claim)
+    if lang == 'es':
+        lang_inst = "Responde en español."
+    elif lang == 'en':
+        lang_inst = "Answer in English."
+    elif lang == 'fr':
+        lang_inst = "Répondez en français."
+    elif lang == 'de':
+        lang_inst = "Antworten Sie auf Deutsch."
     else:
-        language_instruction = "Answer in the same language as the question."
+        lang_inst = "Answer in the same language as the question."
 
-    # --- Embedding + búsqueda ---
-    query_embedding = embedder.encode([query])
-    D, I = index.search(query_embedding, 5)
-    retrieved_docs = [documents[i] for i in I[0]]
+    # Embedding + búsqueda
+    q_emb = embedder.encode([claim])
+    D, I = index.search(q_emb, 5)
+    retrieved = [documents[i] for i in I[0]]
+    avg_dist = D[0].mean()
 
-    avg_distance = D[0].mean()
-
-    if avg_distance < 0.4:
-        confidence = "High"
-    elif avg_distance < 0.7:
-        confidence = "Medium"
+    # Etiqueta de confianza
+    if avg_dist < 0.4:
+        conf = "Alta"
+    elif avg_dist < 0.7:
+        conf = "Media"
     else:
-        confidence = "Low"
+        conf = "Baja"
 
-    context = "\n".join(retrieved_docs)
-    prompt = f"""### User Statement:
-{query}
+    context = "\n\n---\n\n".join(retrieved)
 
-### Retrieved Context:
+    # Construcción del prompt
+    prompt = f"""### Afirmación a verificar:
+{claim}
+
+### Contexto recuperado:
 {context}
 
-### Instructions:
-You are a historical fact-checking assistant specialized in World War II. 
-{language_instruction}
-1. Carefully read the retrieved context.
-2. Analyze if the user's statement is **supported**, **contradicted**, or **not addressed** based on the context. Think step-by-step.
-3. If there is evidence, highlight the **most relevant excerpt** supporting or contradicting the statement.
-4. Provide a **clear final verdict**: "True", "False", or "Not enough information".
-5. Justify the verdict based only on the retrieved documents. Do not invent facts.
+### Instrucciones:
+Eres un asistente de verificación de hechos especializado en Segunda Guerra Mundial.
+{lang_inst}
+1. Analiza paso a paso si la afirmación está **respaldada**, **contradicha** o **no cubierta** por el contexto.
+2. Señala el **fragmento más relevante** que apoye o refute la afirmación (o "None" si no hay información).
+3. Emite un **veredicto final**: "True", "False" o "Not enough information".
+4. Fundamenta tu veredicto únicamente en los documentos proporcionados. No inventes datos.
 
-### Response Format:
-- Step-by-step reasoning:
-- Main supporting excerpt (or "None" if not enough information):
-- Final Verdict (True or False or Not enough information):
+### Formato de respuesta:
+- Razonamiento paso a paso:
+- Fragmento clave (o "None"):
+- Veredicto final (True / False / Not enough information):
 """
 
-    # --- Resto igual ---
+    # Generación con el LLM
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     outputs = model.generate(**inputs, max_new_tokens=512)
-    answer = tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+    answer = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
-    # BERTScore
-    references = [context]  # the retrieved context
-    candidates = [answer]   # the model's output
+    # Cálculo de BERTScore
+    P, R, F1 = score([answer], ["\n".join(retrieved)], lang=lang,
+                     model_type="microsoft/deberta-xlarge-mnli", verbose=False)
 
-    print("\n🧠 Answer:")
-    print(answer)
-
-    print(f"\n📈 Confidence: {confidence} ({avg_distance:.2f})")
-
-    os.system("huggingface-cli logout")
-
-    P, R, F1 = score(
-    candidates,
-    references,
-    lang=language,
-    model_type="microsoft/deberta-xlarge-mnli",  # Alternativa muy buena y pública
-    verbose=False
+    # Resultado formateado
+    return (
+        f"{answer}\n\n"
+        f"📈 Confianza: {conf} ({avg_dist:.2f})\n"
+        f"BERTScore – P: {P.mean().item():.4f}, "
+        f"R: {R.mean().item():.4f}, "
+        f"F1: {F1.mean().item():.4f}"
     )
-    print(f"BERTScore - Precision: {P.mean().item():.4f}, Recall: {R.mean().item():.4f}, F1: {F1.mean().item():.4f}")
-
-    end_time = time.time()
-    elapsed_time = (end_time - start_time) / 60
-    print(f"\n⏱️ Time elapsed: {elapsed_time:.2f} minutes")

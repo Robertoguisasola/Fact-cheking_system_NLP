@@ -1,0 +1,7 @@
+{
+  "api_key_scopus": "f9740703e2316a4937ffd93d569442d7",
+  "topics": ["World War II"],
+  "languages": ["en"],
+  "max_articles_scopus": 1500,
+  "user_agent_wiki": "FactCheckIIWW/1.0 (100504162@alumnos.uc3m.es)"
+}
