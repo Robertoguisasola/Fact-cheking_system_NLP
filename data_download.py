@@ -8,16 +8,63 @@ import wikipediaapi
 from langdetect import detect
 
 def clean_filename(filename):
+    """
+    Sanitizes a filename by replacing illegal characters with underscores.
+
+    Parameters
+    ----------
+    filename : str
+        The original filename to sanitize.
+
+    Returns
+    -------
+    str
+        A sanitized filename safe for filesystem use.
+    """
     return re.sub(r'[\\/*?<>|:"\n]', '_', filename)
 
 def ensure_folder(path):
+    """
+    Ensures that a folder exists at the specified path. Creates it if it does not exist.
+
+    Parameters
+    ----------
+    path : str
+        The path to the folder.
+    """
     os.makedirs(path, exist_ok=True)
 
 def load_config(config_path="config.json"):
+    """
+    Loads a JSON configuration file.
+
+    Parameters
+    ----------
+    config_path : str, optional
+        Path to the config file. Defaults to "config.json".
+
+    Returns
+    -------
+    dict
+        Parsed JSON configuration as a dictionary.
+    """
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def clean_text(text):
+    """
+    Cleans raw text by removing URLs, HTML tags, anchor elements, and extra whitespace.
+
+    Parameters
+    ----------
+    text : str
+        The input text to clean.
+
+    Returns
+    -------
+    str
+        Cleaned and normalized text.
+    """
     text = re.sub(r'http[s]?://\S+', '', text)
     text = re.sub(r'<img [^>]*>', '', text)
     text = re.sub(r'<a [^>]*>', '', text)
@@ -28,6 +75,24 @@ def clean_text(text):
     return text.strip()
 
 def download_from_wikipedia(topic, language, user_agent):
+        """
+    Downloads a Wikipedia page and all its linked pages, cleans the text, and saves them as .txt files.
+
+    Parameters
+    ----------
+    topic : str
+        The main topic to search in Wikipedia.
+
+    language : str
+        Language code for Wikipedia (e.g., "en", "es").
+
+    user_agent : str
+        A custom user-agent string for the Wikipedia API request.
+
+    Returns
+    -------
+    None
+    """
     print(f"[Wikipedia] Downloading articles for '{topic}' in '{language}'...")
     wiki_wiki = wikipediaapi.Wikipedia(user_agent=user_agent, language=language)
     page = wiki_wiki.page(topic)
@@ -53,6 +118,27 @@ def download_from_wikipedia(topic, language, user_agent):
             print(f"[Wikipedia] Saved: {title}.txt")
 
 def download_from_scopus(topic, languages, api_key, max_articles):
+    """
+    Downloads academic articles from the Scopus API, saves them as text and CSV files categorized by language.
+
+    Parameters
+    ----------
+    topic : str
+        Topic to search for in Scopus (used in the title, abstract, or keywords).
+
+    languages : list of str
+        List of language codes to filter and save articles (e.g., ["en", "es"]).
+
+    api_key : str
+        API key for authenticating with the Scopus API.
+
+    max_articles : int
+        Maximum number of articles to download across all languages.
+
+    Returns
+    -------
+    None
+    """
     print(f"[Scopus] Downloading articles for '{topic}'...")
     base_url = 'https://api.elsevier.com/content/search/scopus'
     query = f'TITLE-ABS-KEY("{topic}")'
