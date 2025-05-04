@@ -17,8 +17,6 @@ This project was developed as part of the "Machine Learning for Health" Master's
 
 ## 🤹 Authors
 
-> *(Replace the list below with the names of your team members)*
-
 * Elena Almagro Azor
 * Mario Golbano Corzo
 * Roberto Martínez - Guisasola Guerrero
