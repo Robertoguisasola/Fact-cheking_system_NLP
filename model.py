@@ -13,8 +13,8 @@ TOKEN = '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'
 
 
 # Cargar FAISS y documentos
-index = faiss.read_index("faiss_index.index")
-with open("documents.pkl", "rb") as f:
+index = faiss.read_index("utils/faiss_index.index")
+with open("utils/documents.pkl", "rb") as f:
     documents = pickle.load(f)
 
 # Embeddings
@@ -84,7 +84,7 @@ You are a historical fact-checking assistant specialized in World War II.
 ### Response Format:
 - Step-by-step reasoning:
 - Main supporting excerpt (or "None" if not enough information):
-- Final Verdict (True / False / Not enough information):
+- Final Verdict (True or False or Not enough information):
 """
 
     # --- Resto igual ---
